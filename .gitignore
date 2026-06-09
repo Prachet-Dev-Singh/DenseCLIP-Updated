@@ -1,6 +1,12 @@
-__pycache__
-.ipynb_checkpoints
-**/.DS_Store
-work_dirs
-*.pth
-data
+# Ignore python cache files
+__pycache__/
+*.pyc
+
+# Ignore large model weights and data directories
+models/
+data/
+*.pt
+*.pkl
+
+# Ignore notebook checkpoints
+.ipynb_checkpoints/
