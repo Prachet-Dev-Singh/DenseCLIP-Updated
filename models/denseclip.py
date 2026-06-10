@@ -6,31 +6,35 @@ from .models import CLIPResNetWithAttention, CLIPTextContextEncoder, ContextDeco
 from .utils import tokenize 
 
 class DenseCLIP(nn.Module):
+    class DenseCLIP(nn.Module):
     def __init__(self, class_names, context_length=5, text_dim=1024):
-        """
-        Pure PyTorch implementation of DenseCLIP.
-        """
         super().__init__()
+        # FIX 1: Set context length to 5
         self.context_length = context_length
         self.tau = 0.07
         
-        # 1. Initialize Core PyTorch Modules
-        # Note: Defaults to ResNet-50 configurations. 
-        # For ResNet-101 or ViT, adjust the 'layers' and 'output_dim' accordingly.
         self.backbone = CLIPResNetWithAttention(layers=[3, 4, 6, 3], output_dim=text_dim)
-        self.text_encoder = CLIPTextContextEncoder(context_length=13, embed_dim=text_dim)
-        self.context_decoder = ContextDecoder(visual_dim=text_dim)
         
-        # 2. Tokenize class names
+        # FIX 1b: Text encoder context length strictly set to 13
+        self.text_encoder = CLIPTextContextEncoder(context_length=13, embed_dim=text_dim)
+        
+        # FIX 3: Force context decoder to 3 layers (overriding paper text to match official config)
+        self.context_decoder = ContextDecoder(
+            transformer_width=256,
+            transformer_heads=4,
+            transformer_layers=3, # Explicitly 3 layers
+            visual_dim=text_dim,
+            dropout=0.1
+        )
+        
         self.texts = torch.cat([tokenize(c, context_length=self.context_length) for c in class_names])
         self.num_classes = len(self.texts)
 
-        # 3. Setup Learnable Prompts (Context-Aware Prompting)
+        # Ensure learnable context matches the exact difference (13 - 5 = 8)
         learnable_context_length = self.text_encoder.context_length - self.context_length
         self.contexts = nn.Parameter(torch.randn(1, learnable_context_length, 512))
         nn.init.trunc_normal_(self.contexts)
         
-        # Gamma acts as the residual scaling factor for the vision-to-language prompting
         self.gamma = nn.Parameter(torch.ones(text_dim) * 1e-4)
 
     def forward(self, img):
