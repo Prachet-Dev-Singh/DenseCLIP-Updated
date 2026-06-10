@@ -5,9 +5,9 @@ app = modal.App("denseclip-thesis-training")
 
 # 2. Build the remote container environment using your requirements.txt
 image = (
-    modal.Image.debian_slim(python_version="3.11")
-    .pip_install("opencv-python-headless")  # Ensures seamless image processing on cloud servers
-    .from_requirements("requirements.txt")    # Automatically installs your other local dependencies
+    modal.Image.debian_slim()
+    .pip_install("opencv-python-headless", "wandb")
+    .pip_install_from_requirements("requirements.txt")
 )
 
 # 3. Connect to your persistent cloud drive
@@ -21,6 +21,7 @@ vol = modal.Volume.from_name("denseclip-data")
     memory=16384,           # 16 GB of system RAM to handle large image batches without bottlenecking
     timeout=86400,          # 24-hour limit
     volumes={"/data": vol}, 
+    secrets=[modal.Secret.from_name("wandb-secret")],
     mounts=[modal.Mount.from_local_dir(".", remote_path="/workspace")] 
 )
 def run_training():

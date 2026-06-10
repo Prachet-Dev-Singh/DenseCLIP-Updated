@@ -5,6 +5,7 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from dataset import ADE20KDatasetPurePyTorch, train_transform
 from models import DenseCLIP
+import wandb
 
 # ==========================================
 # 1. EXACT SEMANTIC FPN DECODER
@@ -114,6 +115,19 @@ def main():
     optimizer.zero_grad()
     backbone.train()
     decode_head.train()
+
+    print("🚀 Commencing 80k mixed-precision DenseCLIP training run...")
+    wandb.init(
+        project="denseclip-ade20k-thesis",
+        name="denseclip-resnet50-l4-run",
+        config={
+            "total_iterations": TOTAL_ITERATIONS,
+            "global_batch_size": TARGET_GLOBAL_BATCH,
+            "initial_lr_head": 1e-4,
+            "initial_lr_backbone": 1e-5,
+            "gpu": "NVIDIA L4"
+        }
+    )
     
     while current_iter < TOTAL_ITERATIONS:
         for images, masks in train_loader:
@@ -147,6 +161,14 @@ def main():
             current_iter += 1
             
             if current_iter % 100 == 0:
+                print(f"Iter {current_iter}/{TOTAL_ITERATIONS} | Task: {loss_task.item():.4f} | Aux: {loss_aux.item():.4f} | LR (Head): {optimizer.param_groups[2]['lr']:.6f}")
+                
+                wandb.log({
+                    "task_loss": loss_task.item(),
+                    "aux_loss": loss_aux.item(),
+                    "combined_unscaled_loss": loss.item() * ACCUMULATION_STEPS,
+                    "learning_rate_head": optimizer.param_groups[2]['lr']
+                }, step=current_iter)
                 print(f"Iter {current_iter}/{TOTAL_ITERATIONS} | Task: {loss_task.item():.4f} | Aux: {loss_aux.item():.4f} | LR (Head): {optimizer.param_groups[2]['lr']:.6f}")
 
             if current_iter % 10000 == 0:
