@@ -30,7 +30,7 @@ class DenseCLIP(nn.Module):
         )
         
         # 2. Tokenize class names using the full 77-token window
-        self.texts = torch.cat([tokenize(c, context_length=77) for c in class_names])
+        self.texts = torch.cat([tokenize(c, context_length=77 - self.context_length) for c in class_names])
         self.num_classes = len(self.texts)
 
         # 3. Setup Learnable Prompts (5 vectors of dimension 512)
