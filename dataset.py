@@ -58,7 +58,6 @@ train_transform = A.Compose([
     # Randomly crop a perfect 512x512 square
     A.RandomCrop(height=512, width=512, p=1.0),
     A.HorizontalFlip(p=0.5),
-    A.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1, p=0.5),
     
     # CRITICAL: OpenAI CLIP Normalization Stats (Not ImageNet values)
     A.Normalize(
@@ -69,8 +68,11 @@ train_transform = A.Compose([
 ])
 
 val_transform = A.Compose([
-    # Validation uses standard Resize to preserve target evaluation matrices
-    A.Resize(height=512, width=512),
+    # Validation uses SmallestMaxSize to resize the shorter side to 512, maintaining aspect ratio
+    A.SmallestMaxSize(max_size=512),
+    # Pad if the longer side is somehow smaller than 512 to ensure batching works
+    A.PadIfNeeded(min_height=512, min_width=512,
+                  border_mode=cv2.BORDER_CONSTANT, value=0, mask_value=255),
     A.Normalize(
         mean=[0.48145466, 0.4578275, 0.40821073],
         std=[0.26862954, 0.26130258, 0.27577711],

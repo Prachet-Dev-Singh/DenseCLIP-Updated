@@ -16,7 +16,7 @@ vol = modal.Volume.from_name("denseclip-data")
 # 4. Define the remote execution settings
 @app.function(
     image=image,
-    gpu="L4",               # Ada Lovelace architecture, 24GB VRAM ($0.80/hr)
+    gpu="L4",               # Ada Lovelace architecture, 24GB VRAM 
     cpu=4.0,                # 4 CPU cores, perfectly matching your 4 dataloader workers
     memory=16384,           # 16 GB of system RAM to handle large image batches without bottlenecking
     timeout=86400,          # 24-hour limit
@@ -27,7 +27,7 @@ def run_training():
     import subprocess
     import os
     
-    print("🚀 Booting A100 Instance and establishing workspace...")
+    print("🚀 Booting L4 Instance and establishing workspace...")
     
     # Switch to the directory holding your mounted code files
     os.chdir("/workspace")
