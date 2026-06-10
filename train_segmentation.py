@@ -15,7 +15,6 @@ class SemanticFPN(nn.Module):
         self.projections = nn.ModuleList([
             nn.Conv2d(c, 256, kernel_size=1) for c in in_channels_list[:-1]
         ])
-        # Concatenate highest feature with score_map (150)
         self.deepest_projection = nn.Conv2d(in_channels_list[-1] + num_classes, 256, kernel_size=1)
         
         self.fpn_convs = nn.ModuleList([
@@ -48,8 +47,9 @@ class SemanticFPN(nn.Module):
 
 def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print(f"Executing pipeline on device: {device}")
     
-    # --- ISSUE 2 & 8: BATCH SIZE & ITERATIONS ---
+    # --- Structural Scaling Params ---
     LOCAL_BATCH_SIZE = 16                 
     TARGET_GLOBAL_BATCH = 32              
     ACCUMULATION_STEPS = TARGET_GLOBAL_BATCH // LOCAL_BATCH_SIZE # = 2
@@ -62,35 +62,18 @@ def main():
     train_dataset = ADE20KDatasetPurePyTorch(DATASET_ROOT, split='training', transform=train_transform)
     train_loader = DataLoader(train_dataset, batch_size=LOCAL_BATCH_SIZE, shuffle=True, drop_last=True, num_workers=4)
     
-    # --- MODEL INIT ---
-    ADE20K_CLASSES = (
-        'wall', 'building', 'sky', 'floor', 'tree', 'ceiling', 'road', 'bed', 'windowpane', 'grass', 
-        'cabinet', 'sidewalk', 'person', 'earth', 'door', 'table', 'mountain', 'plant', 'curtain', 'chair', 
-        'car', 'water', 'painting', 'sofa', 'shelf', 'house', 'sea', 'mirror', 'rug', 'field', 
-        'armchair', 'seat', 'fence', 'desk', 'rock', 'wardrobe', 'lamp', 'bathtub', 'railing', 'cushion', 
-        'base', 'box', 'column', 'signboard', 'chestofdrawers', 'counter', 'sand', 'sink', 'skyscraper', 'fireplace', 
-        'refrigerator', 'grandstand', 'path', 'stairs', 'runway', 'case', 'pooltable', 'pillow', 'screendoor', 'stairway', 
-        'river', 'bridge', 'bookcase', 'blind', 'coffeetable', 'toilet', 'flower', 'book', 'hill', 'bench', 
-        'countertop', 'stove', 'palm', 'kitchenisland', 'computer', 'swivelchair', 'boat', 'bar', 'arcademachine', 'hovel', 
-        'bus', 'towel', 'light', 'truck', 'tower', 'chandelier', 'awning', 'streetlight', 'booth', 'televisionreceiver', 
-        'airplane', 'dirttrack', 'apparel', 'pole', 'land', 'bannister', 'escalator', 'ottoman', 'bottle', 'buffet', 
-        'poster', 'stage', 'van', 'ship', 'fountain', 'conveyerbelt', 'canopy', 'washer', 'plaything', 'swimmingpool', 
-        'stool', 'barrel', 'basket', 'waterfall', 'tent', 'bag', 'minibike', 'cradle', 'oven', 'ball', 
-        'food', 'step', 'tank', 'tradename', 'microwave', 'pot', 'animal', 'bicycle', 'lake', 'dishwasher', 
-        'screen', 'blanket', 'sculpture', 'hood', 'sconce', 'vase', 'trafficlight', 'tray', 'ashcan', 'fan', 
-        'pier', 'crtscreen', 'plate', 'monitor', 'bulletinboard', 'shower', 'radiator', 'glass', 'clock', 'flag'
-    )
+    ADE20K_CLASSES = ('wall', 'building', 'sky', 'floor', 'tree', 'ceiling', 'road', 'bed', 'windowpane', 'grass', 'cabinet', 'sidewalk', 'person', 'earth', 'door', 'table', 'mountain', 'plant', 'curtain', 'chair', 'car', 'water', 'painting', 'sofa', 'shelf', 'house', 'sea', 'mirror', 'rug', 'field', 'armchair', 'seat', 'fence', 'desk', 'rock', 'wardrobe', 'lamp', 'bathtub', 'railing', 'cushion', 'base', 'box', 'column', 'signboard', 'chestofdrawers', 'counter', 'sand', 'sink', 'skyscraper', 'fireplace', 'refrigerator', 'grandstand', 'path', 'stairs', 'runway', 'case', 'pooltable', 'pillow', 'screendoor', 'stairway', 'river', 'bridge', 'bookcase', 'blind', 'coffeetable', 'toilet', 'flower', 'book', 'hill', 'bench', 'countertop', 'stove', 'palm', 'kitchenisland', 'computer', 'swivelchair', 'boat', 'bar', 'arcademachine', 'hovel', 'bus', 'towel', 'light', 'truck', 'tower', 'chandelier', 'awning', 'streetlight', 'booth', 'televisionreceiver', 'airplane', 'dirttrack', 'apparel', 'pole', 'land', 'bannister', 'escalator', 'ottoman', 'bottle', 'buffet', 'poster', 'stage', 'van', 'ship', 'fountain', 'conveyerbelt', 'canopy', 'washer', 'plaything', 'swimmingpool', 'stool', 'barrel', 'basket', 'waterfall', 'tent', 'bag', 'minibike', 'cradle', 'oven', 'ball', 'food', 'step', 'tank', 'tradename', 'microwave', 'pot', 'animal', 'bicycle', 'lake', 'dishwasher', 'screen', 'blanket', 'sculpture', 'hood', 'sconce', 'vase', 'trafficlight', 'tray', 'ashcan', 'fan', 'pier', 'crtscreen', 'plate', 'monitor', 'bulletinboard', 'shower', 'radiator', 'glass', 'clock', 'flag')
     
     backbone = DenseCLIP(class_names=ADE20K_CLASSES, context_length=5).to(device)
     backbone.load_state_dict(torch.jit.load('/data/weights/RN50.pt', map_location='cpu').state_dict(), strict=False)
     decode_head = SemanticFPN(num_classes=150).to(device)
     
-    # --- ISSUE 6: FREEZE TEXT ENCODER ---
+    # Freeze the text encoder completely
     for p in backbone.text_encoder.parameters():
         p.requires_grad = False
     text_enc_ids = {id(p) for p in backbone.text_encoder.parameters()}
 
-    # --- ISSUE 7: ZERO WEIGHT DECAY FOR NORM LAYERS ---
+    # ZERO WEIGHT DECAY FOR NORM LAYERS
     norm_modules = (nn.BatchNorm2d, nn.LayerNorm, nn.GroupNorm, nn.SyncBatchNorm)
     decay_params, no_decay_params = [], []
     
@@ -108,18 +91,16 @@ def main():
     ]
     optimizer = torch.optim.AdamW(optimizer_grouped_parameters)
     
-    # --- ISSUE 4 & 5: EXACT MMSEG WARMUP & POLY DECAY WITH MIN_LR ---
+    # EXACT MMSEG WARMUP & POLY DECAY WITH MIN_LR
     def get_lr_multiplier(step):
         warmup_iters = 1500
         total_iters = TOTAL_ITERATIONS
         power = 0.9
-        min_lr_ratio = 1e-6 / 1e-4 # Paper scales relative to base LR
+        min_lr_ratio = 1e-6 / 1e-4 
         
         if step < warmup_iters:
-            # Linear warmup from 1e-6 (which is ratio 1e-2) to 1.0
             return (1e-6/1e-4) + (1.0 - (1e-6/1e-4)) * (step / warmup_iters)
         else:
-            # Poly decay to min_lr
             progress = (step - warmup_iters) / (total_iters - warmup_iters)
             decay = (1.0 - progress) ** power
             return (1.0 - min_lr_ratio) * decay + min_lr_ratio
@@ -129,7 +110,6 @@ def main():
     criterion = nn.CrossEntropyLoss(ignore_index=255)
     scaler = torch.amp.GradScaler('cuda')
     
-    # --- TRAINING LOOP WITH AUX LOSS ---
     current_iter = 0
     optimizer.zero_grad()
     backbone.train()
@@ -148,20 +128,22 @@ def main():
                 outputs = F.interpolate(outputs, size=masks.shape[1:], mode='bilinear', align_corners=False)
                 loss_task = criterion(outputs, masks)
                 
-                # AUXILIARY PIXEL-TEXT MATCHING LOSS (tau=0.07)
+                # FIX ISSUE 7: score_map is now raw similarity, applying temperature / 0.07 exactly once here
                 gt_downsampled = F.interpolate(masks.float().unsqueeze(1), size=score_map.shape[2:], mode='nearest').squeeze(1).long()
                 loss_aux = criterion(score_map / 0.07, gt_downsampled)
                 
-                loss = (loss_task + 0.4 * loss_aux) / ACCUMULATION_STEPS # Standard mmseg aux weight is usually 0.4
+                # FIX ISSUE 5: Using equal weighting (1.0) for the identity pixel-text head loss
+                loss = (loss_task + loss_aux) / ACCUMULATION_STEPS
             
             scaler.scale(loss).backward()
             
             if (current_iter + 1) % ACCUMULATION_STEPS == 0:
                 scaler.step(optimizer)
                 scaler.update()
-                scheduler.step()
                 optimizer.zero_grad()
                 
+            # FIX ISSUE 6: Stepping every iteration to accurately align with gradient accumulation steps
+            scheduler.step()
             current_iter += 1
             
             if current_iter % 100 == 0:
