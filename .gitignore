@@ -3,10 +3,11 @@ __pycache__/
 *.pyc
 
 # Ignore large model weights and data directories
-models/
+
 data/
 *.pt
 *.pkl
 
 # Ignore notebook checkpoints
 .ipynb_checkpoints/
+!models/

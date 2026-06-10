@@ -48,18 +48,15 @@ class ADE20KDatasetPurePyTorch(Dataset):
 
 # The exact publication pipeline matching standard mmseg configurations
 train_transform = A.Compose([
-    # Random Scale: 0.5x to 2.0x of the original size
     A.RandomScale(scale_limit=(-0.5, 1.0), p=1.0),
-    
-    # Pad to 512x512 if scale makes it too small. mask_value=255 forces loss function exclusion
     A.PadIfNeeded(min_height=512, min_width=512, 
                   border_mode=cv2.BORDER_CONSTANT, value=0, mask_value=255),
-    
-    # Randomly crop a perfect 512x512 square
     A.RandomCrop(height=512, width=512, p=1.0),
     A.HorizontalFlip(p=0.5),
     
-    # CRITICAL: OpenAI CLIP Normalization Stats (Not ImageNet values)
+    # RESTORED: This accurately replicates MMSegmentation's 'PhotoMetricDistortion'
+    A.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1, p=0.5),
+    
     A.Normalize(
         mean=[0.48145466, 0.4578275, 0.40821073],
         std=[0.26862954, 0.26130258, 0.27577711],
