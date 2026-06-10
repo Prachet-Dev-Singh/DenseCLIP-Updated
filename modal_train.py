@@ -1,43 +1,49 @@
 import modal
 
-# 1. Define the App name
+# App
 app = modal.App("denseclip-thesis-training")
 
-# 2. Build the remote container environment using your requirements.txt
+# Image
 image = (
     modal.Image.debian_slim()
-    .pip_install("opencv-python-headless", "wandb")
+    .add_local_dir(".", remote_path="/workspace", copy=True)
+    .pip_install("opencv-python-headless", "wandb", "timm")
     .pip_install_from_requirements("requirements.txt")
 )
 
-# 3. Connect to your persistent cloud drive
-vol = modal.Volume.from_name("denseclip-data")
+# Persistent volume
+vol = modal.Volume.from_name(
+    "denseclip-data",
+    create_if_missing=True
+)
 
-# 4. Define the remote execution settings
 @app.function(
     image=image,
-    gpu="L4",               # Ada Lovelace architecture, 24GB VRAM 
-    cpu=4.0,                # 4 CPU cores, perfectly matching your 4 dataloader workers
-    memory=16384,           # 16 GB of system RAM to handle large image batches without bottlenecking
-    timeout=86400,          # 24-hour limit
-    volumes={"/data": vol}, 
+    gpu="L4",
+    cpu=4.0,
+    memory=16384,
+    timeout=86400,  # 24 hours
+    volumes={"/data": vol},
     secrets=[modal.Secret.from_name("wandb-secret")],
-    mounts=[modal.Mount.from_local_dir(".", remote_path="/workspace")] 
 )
 def run_training():
-    import subprocess
     import os
-    
-    print("🚀 Booting L4 Instance and establishing workspace...")
-    
-    # Switch to the directory holding your mounted code files
-    os.chdir("/workspace")
-    
-    # Execute the pure PyTorch training pipeline
-    subprocess.run(["python", "train_segmentation.py"], check=True)
+    import subprocess
 
-# 5. Local machine entry point
+    print("🚀 Booting L4 instance...")
+    print("📂 Dataset path: /data/ADEChallengeData2016")
+    print("📂 Checkpoints path: /data/checkpoints")
+    print("📂 Weights path: /data/weights")
+
+    # Move into copied project directory
+    os.chdir("/workspace")
+
+    subprocess.run(
+        ["python", "train_segmentation.py"],
+        check=True
+    )
+
 @app.local_entrypoint()
 def main():
-    print("Deploying training job to Modal Serverless GPU infrastructure...")
+    print("🚀 Launching DenseCLIP training on Modal...")
     run_training.remote()

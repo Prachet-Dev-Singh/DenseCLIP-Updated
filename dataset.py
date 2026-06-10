@@ -50,7 +50,7 @@ class ADE20KDatasetPurePyTorch(Dataset):
 train_transform = A.Compose([
     A.RandomScale(scale_limit=(-0.5, 1.0), p=1.0),
     A.PadIfNeeded(min_height=512, min_width=512, 
-                  border_mode=cv2.BORDER_CONSTANT, value=0, mask_value=255),
+                  border_mode=cv2.BORDER_CONSTANT, fill=0, fill_mask=255),
     A.RandomCrop(height=512, width=512, p=1.0),
     A.HorizontalFlip(p=0.5),
     
@@ -69,7 +69,7 @@ val_transform = A.Compose([
     A.SmallestMaxSize(max_size=512),
     # Pad if the longer side is somehow smaller than 512 to ensure batching works
     A.PadIfNeeded(min_height=512, min_width=512,
-                  border_mode=cv2.BORDER_CONSTANT, value=0, mask_value=255),
+                  border_mode=cv2.BORDER_CONSTANT, fill=0, fill_mask=255),
     A.Normalize(
         mean=[0.48145466, 0.4578275, 0.40821073],
         std=[0.26862954, 0.26130258, 0.27577711],

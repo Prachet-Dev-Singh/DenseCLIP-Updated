@@ -1,3 +1,9 @@
 ftfy
 tqdm
 regex
+torch>=2.1
+torchvision>=0.16
+albumentations
+numpy
+Pillow
+wandb
