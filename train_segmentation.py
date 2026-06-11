@@ -151,9 +151,25 @@ def main():
         }
     )
 
-    current_iter = 0
-    optimizer_step = 0
     optimizer.zero_grad()
+
+    # --- ADDED: RESUME FROM CHECKPOINT LOGIC ---
+    RESUME_CHECKPOINT = '/data/checkpoints/denseclip_step_20000.pth'
+    if os.path.exists(RESUME_CHECKPOINT):
+        print(f"📂 Resuming from checkpoint: {RESUME_CHECKPOINT}")
+        ckpt = torch.load(RESUME_CHECKPOINT, map_location=device)
+        backbone.load_state_dict(ckpt['backbone'])
+        decode_head.load_state_dict(ckpt['decode_head'])
+        optimizer.load_state_dict(ckpt['optimizer'])
+        scheduler.load_state_dict(ckpt['scheduler'])
+        optimizer_step = ckpt['optimizer_step']
+        current_iter = optimizer_step * ACCUMULATION_STEPS
+        print(f"✅ Resumed at optimizer step {optimizer_step}/{TOTAL_OPT_STEPS}")
+    else:
+        optimizer_step = 0
+        current_iter = 0
+        print("🆕 No checkpoint found, starting fresh")
+
     backbone.train()
     decode_head.train()
     
@@ -174,7 +190,8 @@ def main():
                     gt_downsampled = F.interpolate(
                         masks.float().unsqueeze(1), size=score_map.shape[2:], mode='nearest'
                     ).squeeze(1).long()
-                    loss_aux = criterion(score_map / 0.07, gt_downsampled)
+                    # Cast score_map explicitly to float32 to prevent FP16 underflow instabilities
+                    loss_aux = criterion(score_map.float() / 0.07, gt_downsampled)
                     
                     loss = (loss_task + loss_aux) / ACCUMULATION_STEPS
                 
@@ -191,13 +208,19 @@ def main():
                 
                 if optimizer_step % 100 == 0 and (current_iter % ACCUMULATION_STEPS == 0):
                     print(f"Opt step {optimizer_step}/{TOTAL_OPT_STEPS} | Data Iter: {current_iter} | Task Loss: {loss_task.item():.4f} | Aux Loss: {loss_aux.item():.4f} | Head LR: {optimizer.param_groups[2]['lr']:.2e}")
-                    wandb.log({
-                        "task_loss": loss_task.item(),
-                        "aux_loss": loss_aux.item(),
-                        "combined_unscaled_loss": loss.item() * ACCUMULATION_STEPS,
-                        "learning_rate_head": optimizer.param_groups[2]['lr'],
-                        "optimizer_step": optimizer_step
-                    }, step=optimizer_step)
+                    
+                    # --- UPDATED WANDB TELEMETRY WITH SCORE MAP ANALYSIS ---
+                    with torch.no_grad():
+                        sm = score_map.float()
+                        wandb.log({
+                            "task_loss": loss_task.item(),
+                            "aux_loss": loss_aux.item(),
+                            "combined_unscaled_loss": loss.item() * ACCUMULATION_STEPS,
+                            "learning_rate_head": optimizer.param_groups[2]['lr'],
+                            "score_map_std": sm.std().item(),      # Value should rise over time
+                            "score_map_max": sm.max().item(),      # Should stabilize < 0.95 ideally
+                            "optimizer_step": optimizer_step
+                        }, step=optimizer_step)
 
                 if optimizer_step % 1000 == 0 and optimizer_step > 0 and (current_iter % ACCUMULATION_STEPS == 0):
                     torch.save({
