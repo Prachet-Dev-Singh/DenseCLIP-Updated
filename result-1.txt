@@ -1,0 +1,108 @@
+🚀 Booting L4 Evaluation Engine...
+
+=================================================================
+  DenseCLIP Evaluation
+  Checkpoint : /data/checkpoints/denseclip_step_80000.pth
+  Output dir : /data/eval_results
+  Device     : cuda
+=================================================================
+
+✅ Checkpoint loaded  |  optimizer_step = 80000
+✅ Weights restored
+
+✅ Validation set: 2000 images
+
+/workspace/eval_segmentation.py:158: RuntimeWarning: invalid value encountered in divide
+  iou     = np.where(denom > 0, tp / denom, np.nan)
+/workspace/eval_segmentation.py:163: RuntimeWarning: invalid value encountered in divide
+  acc     = np.where(row_sum > 0, tp / row_sum, np.nan)
+  [  50/2000]  mIoU: 7.81% | aAcc: 71.38% | mAcc: 27.21%
+  [ 100/2000]  mIoU: 8.41% | aAcc: 65.93% | mAcc: 23.78%
+  [ 150/2000]  mIoU: 9.51% | aAcc: 66.57% | mAcc: 24.85%
+  [ 200/2000]  mIoU: 9.80% | aAcc: 67.25% | mAcc: 23.65%
+  [ 250/2000]  mIoU: 10.10% | aAcc: 66.76% | mAcc: 22.91%
+  [ 300/2000]  mIoU: 10.51% | aAcc: 65.59% | mAcc: 22.85%
+  [ 350/2000]  mIoU: 11.16% | aAcc: 65.25% | mAcc: 23.64%
+  [ 400/2000]  mIoU: 11.46% | aAcc: 64.94% | mAcc: 24.13%
+  [ 450/2000]  mIoU: 11.72% | aAcc: 65.43% | mAcc: 24.53%
+  [ 500/2000]  mIoU: 12.51% | aAcc: 64.80% | mAcc: 25.19%
+  [ 550/2000]  mIoU: 12.60% | aAcc: 64.37% | mAcc: 24.79%
+  [ 600/2000]  mIoU: 12.93% | aAcc: 64.91% | mAcc: 25.36%
+  [ 650/2000]  mIoU: 13.14% | aAcc: 64.52% | mAcc: 25.53%
+  [ 700/2000]  mIoU: 13.32% | aAcc: 64.08% | mAcc: 25.62%
+  [ 750/2000]  mIoU: 13.49% | aAcc: 63.93% | mAcc: 25.57%
+  [ 800/2000]  mIoU: 13.55% | aAcc: 64.63% | mAcc: 25.45%
+  [ 850/2000]  mIoU: 13.57% | aAcc: 65.70% | mAcc: 25.46%
+  [ 900/2000]  mIoU: 13.67% | aAcc: 66.02% | mAcc: 25.44%
+  [ 950/2000]  mIoU: 13.75% | aAcc: 65.80% | mAcc: 25.32%
+  [1000/2000]  mIoU: 13.79% | aAcc: 65.86% | mAcc: 25.43%
+  [1050/2000]  mIoU: 13.69% | aAcc: 65.80% | mAcc: 25.30%
+  [1100/2000]  mIoU: 13.79% | aAcc: 65.40% | mAcc: 25.57%
+  [1150/2000]  mIoU: 13.85% | aAcc: 65.55% | mAcc: 25.70%
+  [1200/2000]  mIoU: 13.81% | aAcc: 65.58% | mAcc: 25.60%
+  [1250/2000]  mIoU: 13.89% | aAcc: 65.67% | mAcc: 25.74%
+  [1300/2000]  mIoU: 14.01% | aAcc: 65.53% | mAcc: 26.04%
+  [1350/2000]  mIoU: 14.05% | aAcc: 65.36% | mAcc: 26.07%
+  [1400/2000]  mIoU: 14.15% | aAcc: 65.55% | mAcc: 26.20%
+  [1450/2000]  mIoU: 14.11% | aAcc: 65.57% | mAcc: 26.14%
+  [1500/2000]  mIoU: 14.08% | aAcc: 65.45% | mAcc: 25.95%
+  [1550/2000]  mIoU: 14.04% | aAcc: 65.33% | mAcc: 25.82%
+  [1600/2000]  mIoU: 13.95% | aAcc: 65.52% | mAcc: 25.52%
+  [1650/2000]  mIoU: 13.90% | aAcc: 65.36% | mAcc: 25.37%
+  [1700/2000]  mIoU: 13.88% | aAcc: 65.34% | mAcc: 25.34%
+  [1750/2000]  mIoU: 13.82% | aAcc: 65.28% | mAcc: 25.25%
+  [1800/2000]  mIoU: 13.83% | aAcc: 65.58% | mAcc: 25.26%
+  [1850/2000]  mIoU: 13.88% | aAcc: 66.09% | mAcc: 25.32%
+  [1900/2000]  mIoU: 13.83% | aAcc: 66.26% | mAcc: 25.11%
+  [1950/2000]  mIoU: 13.88% | aAcc: 66.06% | mAcc: 25.17%
+  [2000/2000]  mIoU: 13.85% | aAcc: 65.88% | mAcc: 25.05%
+
+=================================================================
+  FINAL RESULTS — Step 80000
+=================================================================
+  aAcc (Overall Pixel Acc) : 65.88%
+  mAcc (Mean Class Acc)    : 25.05%
+  mIoU (single-scale)      : 13.85%
+  Paper target (SS)        : 43.5%
+  Gap                      : -29.65%
+=================================================================
+
+  Top 15 classes:
+    sky                            47.3%
+    building                       40.5%
+    ceiling                        39.3%
+    road                           39.0%
+    floor                          37.2%
+    tree                           36.9%
+    wall                           36.2%
+    bed                            36.1%
+    pool table                     35.4%
+    grass                          35.3%
+    car                            34.9%
+    cradle                         32.4%
+    person                         30.8%
+    sea                            29.5%
+    window pane                    29.3%
+
+  Bottom 15 classes:
+    poster                          1.0%
+    bag                             0.6%
+    monitor                         0.5%
+    tray                            0.2%
+    lake                            0.2%
+    bannister                       0.2%
+    flag                            0.2%
+    glass                           0.0%
+    blanket                         0.0%
+    shower                          0.0%
+    sculpture                       0.0%
+    step                            0.0%
+    fountain                        0.0%
+    barrel                          0.0%
+    canopy                          0.0%
+
+  Saving charts ...
+
+  📊 per_class_iou → /data/eval_results/per_class_iou_step80000.png
+  📊 iou_histogram → /data/eval_results/iou_histogram_step80000.png
+  📊 confusion_matrix → /data/eval_results/confusion_matrix_step80000.png
