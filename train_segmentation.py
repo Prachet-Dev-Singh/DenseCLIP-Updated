@@ -94,7 +94,17 @@ def main():
     )
     
     backbone = DenseCLIP(class_names=ADE20K_CLASSES, context_length=5).to(device)
-    backbone.load_state_dict(torch.jit.load('/data/weights/RN50.pt', map_location='cpu').state_dict(), strict=False)
+    
+    CLIP_WEIGHTS_PATH = '/data/weights/RN50.pt'
+    print("⏳ Injecting OpenAI pre-trained weights into sub-modules...")
+    
+    # 1. Load the ResNet visual backbone (strips 'visual.' prefix internally)
+    backbone.backbone.init_weights(CLIP_WEIGHTS_PATH)
+    
+    # 2. Load the Transformer text encoder (strips/maps 'transformer.' prefixes internally)
+    backbone.text_encoder.init_weights(CLIP_WEIGHTS_PATH)
+    
+    print("✅ CLIP weights successfully loaded into DenseCLIP architecture.")
     decode_head = SemanticFPN(num_classes=150).to(device)
     
     for p in backbone.text_encoder.parameters():

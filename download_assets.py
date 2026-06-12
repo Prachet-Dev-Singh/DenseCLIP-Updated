@@ -4,7 +4,7 @@ import os
 
 # 1. Define the App and connect your volume
 app = modal.App("asset-downloader")
-vol = modal.Volume.from_name("denseclip-data")
+vol = modal.Volume.from_name("denseclip-data", create_if_missing=True)
 
 # 2. Build a tiny environment just for downloading
 image = modal.Image.debian_slim().apt_install("wget", "unzip")
