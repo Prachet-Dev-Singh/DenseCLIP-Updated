@@ -375,8 +375,8 @@ def save_summary_card(miou, aAcc, mAcc, per_class_iou, step, output_dir):
         (BX, BY), BW*fill, BH, boxstyle='round,pad=0.005',
         facecolor=BLUE, edgecolor='none',
         transform=ax.transAxes, clip_on=False))
-    ax.axvline(BX + BW*targ, ymin=BY, ymax=BY+BH+0.02,
-               color=ORANGE, linewidth=2, transform=ax.transAxes, clip_on=False)
+    ax.plot([BX + BW*targ, BX + BW*targ], [BY, BY+BH+0.02],
+            color=ORANGE, linewidth=2, transform=ax.transAxes, clip_on=False)
     ax.text(BX + BW*targ, BY-0.03, 'paper',
             transform=ax.transAxes, color=ORANGE, fontsize=8, ha='center')
 

@@ -5,6 +5,7 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from dataset import ADE20KDatasetPurePyTorch, train_transform
 from models import DenseCLIP
+import numpy as np
 
 # =========================================================================
 # 1. EXACT SEMANTIC FPN DECODER (Multi-Scale Summation Architecture)
@@ -44,6 +45,39 @@ class SemanticFPN(nn.Module):
             out = out + F.interpolate(fpn_outs[i], size=target_size, mode='bilinear', align_corners=False)
             
         return self.classifier(out)
+
+import numpy as np
+
+# =========================================================================
+# METRICS COMPUTATION (For Training Dashboard)
+# =========================================================================
+class MeanIoU:
+    def __init__(self, num_classes=150, ignore_index=255):
+        self.num_classes  = num_classes
+        self.ignore_index = ignore_index
+        self.confusion    = np.zeros((num_classes, num_classes), dtype=np.int64)
+
+    def update(self, pred, gt):
+        mask = gt != self.ignore_index
+        p = np.clip(pred[mask].astype(np.int64), 0, self.num_classes-1)
+        g = gt[mask].astype(np.int64)
+        idx = g * self.num_classes + p
+        self.confusion += np.bincount(idx, minlength=self.num_classes**2).reshape(
+            self.num_classes, self.num_classes)
+
+    def compute(self):
+        tp      = np.diag(self.confusion)
+        row_sum = self.confusion.sum(axis=1)
+        col_sum = self.confusion.sum(axis=0)
+        denom   = tp + row_sum + col_sum - tp
+        
+        # Suppress the divide-by-zero warning for missing batch classes
+        with np.errstate(divide='ignore', invalid='ignore'):
+            iou     = np.where(denom > 0, tp / denom, np.nan)
+            miou    = float(np.nanmean(iou))
+            aAcc    = tp.sum() / self.confusion.sum() if self.confusion.sum() > 0 else 0.0
+            
+        return iou, miou, aAcc
 
 # =========================================================================
 # 2. MAIN TRAINING RUN ENGINE
@@ -112,19 +146,41 @@ def main():
     text_enc_ids = {id(p) for p in backbone.text_encoder.parameters()}
 
     norm_modules = (nn.BatchNorm2d, nn.LayerNorm, nn.GroupNorm, nn.SyncBatchNorm)
-    decay_params, no_decay_params = [], []
+    lr_1e5_decay, lr_1e5_no_decay = [], []
+    lr_1e4_decay, lr_1e4_no_decay = [], []
     
-    for m in backbone.modules():
+    # 1. Map the IDs of the strict pre-trained visual backbone
+    pretrained_visual_ids = {id(p) for p in backbone.backbone.parameters()}
+    
+    # 2. Iterate through the ENTIRE DenseCLIP module (including context layers)
+    for name, m in backbone.named_modules():
         is_norm = isinstance(m, norm_modules)
-        for p in m.parameters(recurse=False):
-            if not p.requires_grad or id(p) in text_enc_ids: continue
-            if is_norm: no_decay_params.append(p)
-            else: decay_params.append(p)
+        for p_name, p in m.named_parameters(recurse=False):
+            if not p.requires_grad or id(p) in text_enc_ids:
+                continue
+                
+            # If the parameter belongs to the original ResNet -> slow LR
+            if id(p) in pretrained_visual_ids:
+                if is_norm or p_name == 'bias': lr_1e5_no_decay.append(p)
+                else: lr_1e5_decay.append(p)
+            # If it's a new context parameter -> fast LR
+            else:
+                if is_norm or p_name == 'bias': lr_1e4_no_decay.append(p)
+                else: lr_1e4_decay.append(p)
+                
+    # 3. Add the Semantic FPN decoder parameters to the fast LR groups
+    for name, m in decode_head.named_modules():
+        is_norm = isinstance(m, norm_modules)
+        for p_name, p in m.named_parameters(recurse=False):
+            if is_norm or p_name == 'bias': lr_1e4_no_decay.append(p)
+            else: lr_1e4_decay.append(p)
 
+    # 4. Construct the decoupled parameter groups
     optimizer_grouped_parameters = [
-        {'params': no_decay_params, 'weight_decay': 0.0, 'lr': 1e-5},
-        {'params': decay_params, 'weight_decay': 0.0001, 'lr': 1e-5},
-        {'params': decode_head.parameters(), 'weight_decay': 0.0001, 'lr': 1e-4}
+        {'params': lr_1e5_no_decay, 'weight_decay': 0.0,    'lr': 1e-5}, # Visual backbone (no decay)
+        {'params': lr_1e5_decay,    'weight_decay': 0.0001, 'lr': 1e-5}, # Visual backbone (decay)
+        {'params': lr_1e4_no_decay, 'weight_decay': 0.0,    'lr': 1e-4}, # Context + FPN (no decay)
+        {'params': lr_1e4_decay,    'weight_decay': 0.0001, 'lr': 1e-4}, # Context + FPN (decay)
     ]
     optimizer = torch.optim.AdamW(optimizer_grouped_parameters)
     
@@ -164,7 +220,8 @@ def main():
     optimizer.zero_grad()
 
     # --- ADDED: RESUME FROM CHECKPOINT LOGIC ---
-    RESUME_CHECKPOINT = '/data/checkpoints/denseclip_step_20000.pth'
+    # Point explicitly to the healthy 766 MiB checkpoint
+    RESUME_CHECKPOINT = '/data/checkpoints/denseclip_latest.pth'
     if os.path.exists(RESUME_CHECKPOINT):
         print(f"📂 Resuming from checkpoint: {RESUME_CHECKPOINT}")
         ckpt = torch.load(RESUME_CHECKPOINT, map_location=device)
@@ -222,13 +279,25 @@ def main():
                     # --- UPDATED WANDB TELEMETRY WITH SCORE MAP ANALYSIS ---
                     with torch.no_grad():
                         sm = score_map.float()
+                        preds = outputs.argmax(1).cpu().numpy()
+                        gts = masks.cpu().numpy()
+                        
+                        batch_metric = MeanIoU(num_classes=150, ignore_index=255)
+                        for p, g in zip(preds, gts):
+                            batch_metric.update(p, g)
+                            
+                        _, batch_miou, batch_aAcc = batch_metric.compute()
+                        print(f"Opt step {optimizer_step}/{TOTAL_OPT_STEPS} | Task Loss: {loss_task.item():.4f} | Aux Loss: {loss_aux.item():.4f} | Batch mIoU: {batch_miou*100:.2f}% | Head LR: {optimizer.param_groups[2]['lr']:.2e}")
+                        # Push to Weights & Biases
                         wandb.log({
                             "task_loss": loss_task.item(),
                             "aux_loss": loss_aux.item(),
                             "combined_unscaled_loss": loss.item() * ACCUMULATION_STEPS,
                             "learning_rate_head": optimizer.param_groups[2]['lr'],
-                            "score_map_std": sm.std().item(),      # Value should rise over time
-                            "score_map_max": sm.max().item(),      # Should stabilize < 0.95 ideally
+                            "score_map_std": sm.std().item(),      
+                            "score_map_max": sm.max().item(),  
+                            "train_batch_miou": batch_miou * 100,  # <-- Prof's requested metric!
+                            "train_batch_aAcc": batch_aAcc * 100,
                             "optimizer_step": optimizer_step
                         }, step=optimizer_step)
 
